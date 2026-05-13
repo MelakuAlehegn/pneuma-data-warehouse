@@ -71,3 +71,4 @@ Thumbs.db
 *.pem
 *.key
 secrets/
+*.docx
