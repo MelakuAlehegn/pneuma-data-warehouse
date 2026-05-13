@@ -1,8 +1,8 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-COMPOSE := docker compose -f infra/docker-compose.yml
+COMPOSE := docker compose --env-file .env -f infra/docker-compose.yml
 
-.PHONY: help install lint format test up down logs ps restart clean
+.PHONY: help install lint format test build up down logs ps restart clean
 .PHONY: ingest dbt-deps dbt-run dbt-test dbt-docs
 
 help: ## Show this help
@@ -24,12 +24,15 @@ format: ## Format code (ruff)
 test: ## Run pytest suite
 	uv run pytest
 
-# ---------- Docker stack (filled in during Phase 1) ----------
+# ---------- Docker stack ----------
 
-up: ## Start the full stack
-	$(COMPOSE) up -d
+build: ## Build custom images (Airflow with dbt + Cosmos)
+	$(COMPOSE) build
 
-down: ## Stop the stack
+up: ## Start the full stack in the background
+	$(COMPOSE) up
+
+down: ## Stop the stack (containers + networks; data volumes survive)
 	$(COMPOSE) down
 
 logs: ## Tail logs from all services
@@ -40,7 +43,7 @@ ps: ## Show running services
 
 restart: down up ## Restart the stack
 
-clean: ## Remove containers, volumes, and networks
+clean: ## Remove containers, networks, AND named volumes (wipes data)
 	$(COMPOSE) down -v --remove-orphans
 
 # ---------- Pipeline shortcuts (filled in during Phases 2-4) ----------

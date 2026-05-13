@@ -1,0 +1,12 @@
+# dbt — the transformation engine
+dbt-core==1.11.9
+dbt-postgres==1.10.0
+
+# Airflow ↔ dbt bridge
+astronomer-cosmos==1.14.1
+
+# S3-compatible client (talks to MinIO from DAGs)
+boto3==1.40.71
+
+# Local schema/connection helpers used by ingest tasks
+psycopg2-binary==2.9.10
