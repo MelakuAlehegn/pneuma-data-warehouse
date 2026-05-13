@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# uv
+.uv-cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Data — never commit raw or processed data
+data/
+*.csv
+*.parquet
+*.json.gz
+*.zip
+!seeds/**/*.csv
+
+# Airflow
+airflow/logs/
+airflow/plugins/__pycache__/
+airflow/standalone_admin_password.txt
+airflow.db
+webserver_config.py
+
+# dbt
+dbt/**/target/
+dbt/**/dbt_packages/
+dbt/**/logs/
+dbt/**/.user.yml
+
+# Docker
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/settings.local.json
+
+# Working notes (phase plans, scratch docs, etc.)
+.notes/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+*.key
+secrets/
