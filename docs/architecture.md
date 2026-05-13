@@ -30,6 +30,36 @@ flowchart LR
 | **Intermediate** | `intermediate` | Reusable derived logic (segments, idle detection, speed buckets). dbt models. |
 | **Marts** | `analytics` | Star schema for consumption. dbt models. |
 
+## Service topology
+
+The full stack runs under one `docker compose` file (`infra/docker-compose.yml`). Components and how they connect:
+
+| Service | Image | Host port | Container role |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | `5432` | Hosts three databases: `warehouse` (the DWH), `airflow_meta`, `metabase_meta`. |
+| `airflow-apiserver` | custom `pneuma-dwh/airflow` | `8080` | Airflow 3 REST API + web UI. |
+| `airflow-scheduler` | custom | — | Picks tasks off the queue, runs them locally (LocalExecutor). |
+| `airflow-dag-processor` | custom | — | New in Airflow 3 — parses DAG files in its own process. |
+| `airflow-triggerer` | custom | — | Runs deferrable-operator triggers. |
+| `airflow-init` | custom (one-shot) | — | Runs `airflow db migrate` and creates the admin user, then exits. |
+| `minio` | `minio/minio` | `9000`/`9001` | S3-compatible object store. Bucket `pneuma-raw`. |
+| `minio-init` | `minio/mc` (one-shot) | — | Creates the raw bucket on first boot. |
+| `metabase` | `metabase/metabase` | `3000` | BI dashboards. Stores its own state in `metabase_meta`. |
+
+The custom Airflow image (`infra/airflow/Dockerfile`) is `apache/airflow:3.2.1-python3.11` with `dbt-core`, `dbt-postgres`, `astronomer-cosmos`, and `boto3` baked in. Building deps at image-build time (rather than via `_PIP_ADDITIONAL_REQUIREMENTS` at container start) keeps boots fast and reproducible.
+
+### Role boundaries inside Postgres
+
+| Role | Owns | Reads from | Writes to |
+|---|---|---|---|
+| `warehouse` | `warehouse` DB + `raw` schema | — | `raw.*` |
+| `dbt_dev` | `staging`, `intermediate`, `analytics` schemas | `raw.*` | `staging.*`, `intermediate.*`, `analytics.*` |
+| `metabase_ro` | — | `analytics.*` | — |
+| `airflow` | `airflow_meta` DB | — | `airflow_meta.*` |
+| `metabase` | `metabase_meta` DB | — | `metabase_meta.*` |
+
+This separation means a leaked Metabase password can't write to the warehouse, and a leaked ingest password can't touch Airflow's metadata.
+
 ## Environment separation
 
 Three dbt targets share one Postgres instance, separated by schema prefix:

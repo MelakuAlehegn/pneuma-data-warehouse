@@ -63,20 +63,38 @@ Full diagram and component notes live in [docs/architecture.md](docs/architectur
 
 ## Quickstart
 
-Python tooling is in place today; the Docker stack lands shortly.
-
 ```bash
-make install        # uv sync + pre-commit install
-make lint           # ruff check
-make format         # ruff format
+# One-time
+make install                  # uv sync + pre-commit install
+cp .env.example .env          # then fill in real secrets (see below)
+make build                    # build the custom Airflow image (~5 min first time)
+
+# Daily
+make up                       # start the stack
+make ps                       # see what's running
+make logs                     # tail all logs
+make down                     # stop (data survives)
+make clean                    # stop AND wipe volumes
 ```
 
-Once the stack is in:
+Generate the two required secrets:
 
 ```bash
-cp .env.example .env
-make up             # bring up the whole stack
-make ingest         # run the ingest DAG
-make dbt-run        # transform raw → analytics
-make dbt-docs       # browse dbt lineage docs
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # AIRFLOW_FERNET_KEY
+openssl rand -hex 32                                                                       # AIRFLOW_JWT_SECRET
 ```
+
+On Linux, set `AIRFLOW_UID` to your host user id so bind-mounted files aren't root-owned:
+
+```bash
+echo "AIRFLOW_UID=$(id -u)" >> .env
+```
+
+### Running services
+
+| Service | URL | Login |
+|---|---|---|
+| Airflow UI | http://localhost:8080 | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` |
+| Metabase | http://localhost:3000 | set on first visit |
+| MinIO console | http://localhost:9001 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+| Postgres | `localhost:5432` | per-service roles in `.env` |
