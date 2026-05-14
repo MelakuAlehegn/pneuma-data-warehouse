@@ -84,15 +84,18 @@ This separation means a leaked Metabase password can't write to the warehouse, a
 
 ## Environment separation
 
-Three dbt targets share one Postgres instance, separated by schema prefix:
+Three dbt targets share one Postgres instance, separated by schema prefix. The
+`generate_schema_name` macro in `dbt/dwh/macros/` is what implements this — it
+overrides dbt's default schema-naming rule so prod uses the bare schema names
+that Metabase and downstream consumers can rely on.
 
 | Target | Used by | Schema pattern |
 |--------|---------|----------------|
-| `dev` | Developer laptop | `dev_<schema>` |
-| `ci` | GitHub Actions | `ci_<schema>` |
+| `dev` | Developer laptop | `dbt_dev_<schema>` |
+| `ci` | GitHub Actions | `dbt_ci_<schema>` |
 | `prod` | Airflow scheduled runs | `<schema>` (no prefix) |
 
-Promotion happens by running dbt under the target — not by copying data between databases.
+Promotion happens by running dbt under the target — not by copying data between databases. dbt selects the target via the `DBT_TARGET` env var; the same `profiles.yml` is used in every context.
 
 ## Open design questions
 

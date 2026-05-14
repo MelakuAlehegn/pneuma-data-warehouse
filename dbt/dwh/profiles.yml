@@ -1,0 +1,38 @@
+# Single profile used by every environment. Connection details come from env
+# vars so the same file works in the airflow container (POSTGRES_HOST=postgres)
+# and on a developer laptop (POSTGRES_HOST=localhost). The target selects which
+# schema-naming strategy applies; see macros/generate_schema_name.sql.
+dwh:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'postgres') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_USER', 'dbt_dev') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      dbname: warehouse
+      schema: dbt_dev
+      threads: 4
+
+    ci:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'postgres') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_USER', 'dbt_dev') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      dbname: warehouse
+      schema: dbt_ci
+      threads: 4
+
+    prod:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'postgres') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_USER', 'dbt_dev') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      dbname: warehouse
+      # In prod, generate_schema_name() ignores this and uses the model's
+      # +schema config directly (so marts go to "analytics", etc.).
+      schema: analytics
+      threads: 4

@@ -48,17 +48,30 @@ clean: ## Remove containers, networks, AND named volumes (wipes data)
 
 # ---------- Pipeline shortcuts (filled in during Phases 2-4) ----------
 
-ingest: ## Trigger the ingest DAG
-	@echo "Implemented in Phase 2"
+ingest: ## Trigger the ingest DAG (alternative: run from Airflow UI)
+	$(COMPOSE) exec -T airflow-scheduler airflow dags trigger ingest_pneuma
 
-dbt-deps: ## Install dbt packages
-	@echo "Implemented in Phase 3"
+# dbt targets run inside the airflow-scheduler container so versions match the
+# image we deploy. For local dev iteration install dbt via `uv tool install
+# dbt-postgres==X.Y.Z` and run `dbt` directly from dbt/dwh/.
 
-dbt-run: ## Run dbt models
-	@echo "Implemented in Phase 3"
+DBT := $(COMPOSE) exec -T -w /opt/airflow/dbt airflow-scheduler dbt
 
-dbt-test: ## Run dbt tests
-	@echo "Implemented in Phase 3"
+dbt-debug: ## Verify dbt connectivity to the warehouse
+	$(DBT) debug
 
-dbt-docs: ## Generate and serve dbt docs
-	@echo "Implemented in Phase 3"
+dbt-deps: ## Install dbt packages declared in packages.yml
+	$(DBT) deps
+
+dbt-build: ## Run models AND tests, fail fast on errors
+	$(DBT) build
+
+dbt-run: ## Run models only
+	$(DBT) run
+
+dbt-test: ## Run tests only
+	$(DBT) test
+
+dbt-docs-generate: ## Build the dbt docs static site under dbt/dwh/target
+	$(DBT) docs generate
+	@echo "Generated. Serve from host with: cd dbt/dwh/target && python -m http.server 8001"
