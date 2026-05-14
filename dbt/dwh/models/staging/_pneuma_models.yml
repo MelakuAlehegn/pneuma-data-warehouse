@@ -1,0 +1,79 @@
+version: 2
+
+models:
+  - name: stg_pneuma_tracks
+    description: >
+      One row per vehicle observed in a single source file. Renames the raw
+      columns into the project's naming convention, casts the natural key into
+      a single surrogate, and exposes nothing else — the layer contract is
+      "raw, but cleaner."
+    columns:
+      - name: track_sk
+        description: Surrogate key — md5 hash of (source_file, track_id). Stable across runs.
+        data_tests:
+          - unique
+          - not_null
+      - name: source_file
+        description: Filename of the pNEUMA CSV the row came from.
+        data_tests:
+          - not_null
+      - name: track_id
+        description: Vehicle identifier from the source, unique within source_file.
+        data_tests:
+          - not_null
+      - name: vehicle_type
+        description: Categorical type (Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle).
+        data_tests:
+          - not_null
+      - name: total_distance_m
+        description: Total distance traveled by this vehicle during the recording window, in meters.
+      - name: avg_speed_kmh
+        description: Average speed over the recording window, in km/h.
+      - name: loaded_at
+        description: UTC timestamp the source row was inserted by the ingest pipeline.
+        data_tests:
+          - not_null
+
+  - name: stg_pneuma_trajectory_points
+    description: >
+      One row per recorded frame per vehicle. Renames the raw columns and
+      exposes a foreign key (track_sk) into stg_pneuma_tracks so downstream
+      models can join without re-hashing the natural key.
+    columns:
+      - name: trajectory_point_sk
+        description: Surrogate key — md5 hash of (source_file, track_id, frame_idx). Unique per row.
+        data_tests:
+          - unique
+          - not_null
+      - name: track_sk
+        description: Foreign key into stg_pneuma_tracks.track_sk.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_pneuma_tracks')
+              field: track_sk
+      - name: source_file
+        data_tests:
+          - not_null
+      - name: track_id
+        data_tests:
+          - not_null
+      - name: frame_idx
+        description: Zero-based frame index within the vehicle's trajectory.
+        data_tests:
+          - not_null
+      - name: latitude
+        description: WGS84 latitude.
+      - name: longitude
+        description: WGS84 longitude.
+      - name: speed_kmh
+        description: Instantaneous speed at this frame, in km/h.
+      - name: lon_acceleration_ms2
+        description: Longitudinal acceleration, m/s².
+      - name: lat_acceleration_ms2
+        description: Lateral acceleration, m/s².
+      - name: seconds_since_start
+        description: Seconds elapsed from the start of the recording window when this frame was captured.
+      - name: loaded_at
+        data_tests:
+          - not_null
