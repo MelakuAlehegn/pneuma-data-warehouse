@@ -20,6 +20,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
 EOSQL
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "warehouse" <<-EOSQL
+    -- dbt needs to be able to create per-environment schemas
+    -- (dbt_dev_staging, ci_staging, etc.) on top of the pre-created
+    -- prod-named ones.
+    GRANT CREATE ON DATABASE warehouse TO dbt_dev;
+
     -- Layered schemas. raw is loaded by the ingest pipeline; everything below
     -- staging is built by dbt and never written to by anything else.
     CREATE SCHEMA raw          AUTHORIZATION warehouse;

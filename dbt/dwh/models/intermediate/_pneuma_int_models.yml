@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: int_trajectory_points_with_deltas
+    description: >
+      Trajectory points enriched with per-point derived fields (deltas from
+      the previous point, speed bucket). Ephemeral — inlined into whichever
+      mart references it.
+    columns:
+      - name: trajectory_point_sk
+        data_tests:
+          - unique
+          - not_null
+      - name: track_sk
+        data_tests:
+          - not_null
+      - name: delta_time_sec
+        description: >
+          Seconds elapsed since the previous frame in this track. NULL for the
+          first frame of each track.
+      - name: delta_speed_kmh
+        description: Speed change since the previous frame. NULL for the first frame.
+      - name: delta_distance_m
+        description: >
+          Great-circle distance in metres between this frame and the previous
+          frame for this vehicle. Computed via the haversine_meters macro.
+          NULL for the first frame of each vehicle.
+      - name: speed_bucket
+        description: Speed category. STOPPED | SLOW | NORMAL | FAST.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['STOPPED', 'SLOW', 'NORMAL', 'FAST']
+
+  - name: int_track_kinematics
+    description: >
+      One row per vehicle, summarising its trajectory: point count, time on
+      camera, speed range, and idle frame count. Materialised as a table so
+      dim_track can join to it cheaply.
+    columns:
+      - name: track_sk
+        data_tests:
+          - unique
+          - not_null
+      - name: point_count
+        description: Total number of recorded frames for this vehicle.
+        data_tests:
+          - not_null
+      - name: first_seen_sec
+        description: Earliest frame timestamp (seconds since recording start).
+      - name: last_seen_sec
+        description: Latest frame timestamp.
+      - name: duration_sec
+        description: last_seen_sec minus first_seen_sec.
+      - name: min_speed_kmh
+        description: Minimum observed instantaneous speed.
+      - name: max_speed_kmh
+        description: Maximum observed instantaneous speed.
+      - name: stopped_point_count
+        description: Frames where the vehicle was effectively stationary (speed_kmh < 1).

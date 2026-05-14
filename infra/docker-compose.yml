@@ -32,6 +32,14 @@ x-airflow-common: &airflow-common
     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     MINIO_BUCKET_RAW: ${MINIO_BUCKET_RAW}
     PNEUMA_FILE: ${PNEUMA_FILE:-20181101_d1_0800_0830.csv}
+    # dbt: profiles.yml is env-driven, the same file works inside and outside
+    # the container. Inside the container POSTGRES_HOST is the compose
+    # service name; on a developer laptop it's overridden to "localhost".
+    DBT_USER: dbt_dev
+    DBT_PASSWORD: ${DBT_DEV_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    DBT_TARGET: ${DBT_TARGET:-dev}
   volumes:
     - ../airflow/dags:/opt/airflow/dags
     - ../airflow/plugins:/opt/airflow/plugins

@@ -1,0 +1,87 @@
+version: 2
+
+# A "source" in dbt is a logical wrapper around tables that something OTHER
+# than dbt loaded — in our case, the Airflow ingest DAG. Downstream models
+# reference these with `{{ source('pneuma', 'tracks') }}` instead of hardcoded
+# schema.table strings, which gives us:
+#   - lineage: dbt knows raw.tracks sits upstream of stg_pneuma__tracks
+#   - freshness checks: alert if loaded_at gets stale
+#   - documentation: descriptions show up in dbt docs
+#   - portability: change the schema name in ONE place if it ever moves
+sources:
+  - name: pneuma
+    database: warehouse
+    schema: raw
+    description: >
+      Raw pNEUMA vehicle-trajectory data, loaded by the Airflow `ingest_pneuma`
+      DAG. Append-only and untouched by dbt — staging models are the first
+      thing that reads from here.
+
+    # Default freshness threshold applied to every table below unless overridden.
+    # warn_after: dbt source freshness will WARN if the most recent loaded_at
+    # is older than this. error_after: same idea but raises an error and (in
+    # CI/Airflow) fails the build.
+    loaded_at_field: loaded_at
+    freshness:
+      warn_after: { count: 24, period: hour }
+      error_after: { count: 72, period: hour }
+
+    tables:
+      - name: tracks
+        description: >
+          One row per vehicle observed in a single source file. Holds the
+          track-level summary fields (vehicle type, total distance, average
+          speed) plus lineage columns.
+        columns:
+          - name: source_file
+            description: Filename of the pNEUMA CSV this record came from. Part of the natural key.
+            data_tests:
+              - not_null
+          - name: track_id
+            description: Vehicle identifier, unique within a source_file.
+            data_tests:
+              - not_null
+          - name: vehicle_type
+            description: "Categorical: Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle, etc."
+          - name: traveled_d
+            description: Total distance the vehicle traveled, in meters, over the recording window.
+          - name: avg_speed
+            description: Average speed over the recording window, in km/h.
+          - name: loaded_at
+            description: UTC timestamp the row was inserted by the ingest pipeline.
+            data_tests:
+              - not_null
+
+      - name: trajectory_points
+        description: >
+          One row per recorded frame per vehicle. The bulk table — typically
+          tens of thousands of rows per vehicle, low millions per source file.
+        columns:
+          - name: source_file
+            description: Filename of the pNEUMA CSV. Part of the natural key.
+            data_tests:
+              - not_null
+          - name: track_id
+            description: Vehicle identifier this point belongs to.
+            data_tests:
+              - not_null
+          - name: frame_idx
+            description: Zero-based frame index within the vehicle's trajectory. Together with (source_file, track_id) forms the primary key.
+            data_tests:
+              - not_null
+          - name: lat
+            description: WGS84 latitude.
+          - name: lon
+            description: WGS84 longitude.
+          - name: speed
+            description: Instantaneous speed at this frame, in km/h.
+          - name: lon_acc
+            description: Longitudinal acceleration, m/s².
+          - name: lat_acc
+            description: Lateral acceleration, m/s².
+          - name: time_sec
+            description: Seconds elapsed from the start of the recording window when this frame was captured.
+          - name: loaded_at
+            description: UTC timestamp the row was inserted by the ingest pipeline.
+            data_tests:
+              - not_null

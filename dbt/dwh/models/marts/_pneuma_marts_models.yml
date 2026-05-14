@@ -1,0 +1,166 @@
+version: 2
+
+models:
+  - name: dim_vehicle_type
+    description: >
+      Conformed dimension of vehicle categories observed in the pNEUMA data.
+      Tiny (one row per type) and slowly-changing — re-built each run from
+      distinct values in staging.
+    columns:
+      - name: vehicle_type_sk
+        description: Surrogate key (md5 of vehicle_type_name).
+        data_tests:
+          - unique
+          - not_null
+      - name: vehicle_type_name
+        description: "Display name: Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle, etc."
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_track
+    description: >
+      One row per observed vehicle. Combines the staging-level descriptive
+      fields (vehicle_type, total_distance_m, avg_speed_kmh) with the
+      per-track aggregations from int_track_kinematics (point_count,
+      duration_sec, min/max speed, stopped_point_count). Carries the foreign
+      key to dim_vehicle_type so the fact table joins to one dim, not two.
+    columns:
+      - name: track_sk
+        description: Surrogate key — inherited from stg_pneuma_tracks.
+        data_tests:
+          - unique
+          - not_null
+      - name: vehicle_type_sk
+        description: Foreign key into dim_vehicle_type.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vehicle_type')
+                field: vehicle_type_sk
+      - name: source_file
+        data_tests:
+          - not_null
+      - name: track_id
+        data_tests:
+          - not_null
+      - name: vehicle_type
+        data_tests:
+          - not_null
+      - name: total_distance_m
+        description: Source-reported total distance traveled, in meters.
+      - name: avg_speed_kmh
+        description: Source-reported average speed, in km/h.
+      - name: point_count
+        description: Computed total number of recorded frames for this vehicle.
+        data_tests:
+          - not_null
+      - name: duration_sec
+        description: Computed time on camera (last_seen_sec - first_seen_sec).
+      - name: min_speed_kmh
+        description: Computed minimum observed instantaneous speed.
+      - name: max_speed_kmh
+        description: Computed maximum observed instantaneous speed.
+      - name: stopped_point_count
+        description: Computed count of frames where the vehicle was effectively stationary (speed_kmh < 1).
+      - name: loaded_at
+        data_tests:
+          - not_null
+
+  - name: fct_trajectory_points
+    description: >
+      The central fact in the star. One row per recorded frame per vehicle.
+      Incrementally built: each run processes only rows newer than the
+      current max(loaded_at), merging by trajectory_point_sk so re-running
+      the same source file is a no-op.
+    columns:
+      - name: trajectory_point_sk
+        description: Surrogate key — unique per recorded frame across all source files.
+        data_tests:
+          - unique
+          - not_null
+      - name: track_sk
+        description: Foreign key into dim_track.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_track')
+                field: track_sk
+      - name: source_file
+        description: Filename of the pNEUMA CSV. Lineage column; not used for joining.
+        data_tests:
+          - not_null
+      - name: track_id
+        data_tests:
+          - not_null
+      - name: frame_idx
+        description: Zero-based frame index within this vehicle's trajectory.
+        data_tests:
+          - not_null
+      - name: latitude
+        description: WGS84 latitude.
+      - name: longitude
+        description: WGS84 longitude.
+      - name: speed_kmh
+        description: Instantaneous speed at this frame, in km/h.
+      - name: lon_acceleration_ms2
+        description: Longitudinal acceleration, m/s².
+      - name: lat_acceleration_ms2
+        description: Lateral acceleration, m/s².
+      - name: seconds_since_start
+        description: Seconds elapsed from the start of the recording window when this frame was captured.
+      - name: delta_time_sec
+        description: Seconds since the previous frame for this vehicle. NULL for the first frame of each vehicle.
+      - name: delta_speed_kmh
+        description: Speed change since the previous frame. NULL for the first frame of each vehicle.
+      - name: delta_distance_m
+        description: Great-circle distance from the previous frame in metres. NULL for the first frame of each vehicle.
+      - name: speed_bucket
+        description: Coarse speed band — STOPPED, SLOW, NORMAL, FAST.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['STOPPED', 'SLOW', 'NORMAL', 'FAST']
+      - name: loaded_at
+        data_tests:
+          - not_null
+
+  - name: agg_speed_by_vehicle_type
+    description: >
+      Speed distribution per vehicle category — one row per type. Pre-built so
+      Metabase dashboards read 6 rows instead of aggregating the full
+      trajectory fact on every load.
+    columns:
+      - name: vehicle_type_sk
+        description: Foreign key into dim_vehicle_type. Unique per row here.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vehicle_type')
+                field: vehicle_type_sk
+      - name: vehicle_type_name
+        description: Display label (denormalised from dim_vehicle_type for direct use in dashboards).
+        data_tests:
+          - unique
+          - not_null
+      - name: observation_count
+        description: Total trajectory points contributing to this row.
+        data_tests:
+          - not_null
+      - name: avg_speed_kmh
+        description: Arithmetic mean speed in km/h.
+      - name: min_speed_kmh
+        description: Slowest observed instantaneous speed.
+      - name: max_speed_kmh
+        description: Fastest observed instantaneous speed.
+      - name: stddev_speed_kmh
+        description: Sample standard deviation of speed.
+      - name: median_speed_kmh
+        description: P50 speed (resistant to outliers, unlike avg).
+      - name: p95_speed_kmh
+        description: P95 speed — what 95% of frames stay below.
