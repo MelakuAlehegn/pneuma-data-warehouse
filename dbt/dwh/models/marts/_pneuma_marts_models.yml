@@ -67,3 +67,61 @@ models:
       - name: loaded_at
         data_tests:
           - not_null
+
+  - name: fct_trajectory_points
+    description: >
+      The central fact in the star. One row per recorded frame per vehicle.
+      Incrementally built: each run processes only rows newer than the
+      current max(loaded_at), merging by trajectory_point_sk so re-running
+      the same source file is a no-op.
+    columns:
+      - name: trajectory_point_sk
+        description: Surrogate key — unique per recorded frame across all source files.
+        data_tests:
+          - unique
+          - not_null
+      - name: track_sk
+        description: Foreign key into dim_track.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_track')
+                field: track_sk
+      - name: source_file
+        description: Filename of the pNEUMA CSV. Lineage column; not used for joining.
+        data_tests:
+          - not_null
+      - name: track_id
+        data_tests:
+          - not_null
+      - name: frame_idx
+        description: Zero-based frame index within this vehicle's trajectory.
+        data_tests:
+          - not_null
+      - name: latitude
+        description: WGS84 latitude.
+      - name: longitude
+        description: WGS84 longitude.
+      - name: speed_kmh
+        description: Instantaneous speed at this frame, in km/h.
+      - name: lon_acceleration_ms2
+        description: Longitudinal acceleration, m/s².
+      - name: lat_acceleration_ms2
+        description: Lateral acceleration, m/s².
+      - name: seconds_since_start
+        description: Seconds elapsed from the start of the recording window when this frame was captured.
+      - name: delta_time_sec
+        description: Seconds since the previous frame for this vehicle. NULL for the first frame of each vehicle.
+      - name: delta_speed_kmh
+        description: Speed change since the previous frame. NULL for the first frame of each vehicle.
+      - name: speed_bucket
+        description: Coarse speed band — STOPPED, SLOW, NORMAL, FAST.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['STOPPED', 'SLOW', 'NORMAL', 'FAST']
+      - name: loaded_at
+        data_tests:
+          - not_null
