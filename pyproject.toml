@@ -11,6 +11,8 @@ dev = [
     "pytest>=8.0",
     "pre-commit>=3.7",
     "sqlfluff>=3.2",
+    "boto3>=1.40",
+    "psycopg2-binary>=2.9",
 ]
 
 [tool.ruff]
@@ -40,4 +42,5 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra -q"
