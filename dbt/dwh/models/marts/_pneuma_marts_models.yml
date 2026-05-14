@@ -125,3 +125,40 @@ models:
       - name: loaded_at
         data_tests:
           - not_null
+
+  - name: agg_speed_by_vehicle_type
+    description: >
+      Speed distribution per vehicle category — one row per type. Pre-built so
+      Metabase dashboards read 6 rows instead of aggregating the full
+      trajectory fact on every load.
+    columns:
+      - name: vehicle_type_sk
+        description: Foreign key into dim_vehicle_type. Unique per row here.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vehicle_type')
+                field: vehicle_type_sk
+      - name: vehicle_type_name
+        description: Display label (denormalised from dim_vehicle_type for direct use in dashboards).
+        data_tests:
+          - unique
+          - not_null
+      - name: observation_count
+        description: Total trajectory points contributing to this row.
+        data_tests:
+          - not_null
+      - name: avg_speed_kmh
+        description: Arithmetic mean speed in km/h.
+      - name: min_speed_kmh
+        description: Slowest observed instantaneous speed.
+      - name: max_speed_kmh
+        description: Fastest observed instantaneous speed.
+      - name: stddev_speed_kmh
+        description: Sample standard deviation of speed.
+      - name: median_speed_kmh
+        description: P50 speed (resistant to outliers, unlike avg).
+      - name: p95_speed_kmh
+        description: P95 speed — what 95% of frames stay below.
