@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: dim_vehicle_type
+    description: >
+      Conformed dimension of vehicle categories observed in the pNEUMA data.
+      Tiny (one row per type) and slowly-changing — re-built each run from
+      distinct values in staging.
+    columns:
+      - name: vehicle_type_sk
+        description: Surrogate key (md5 of vehicle_type_name).
+        data_tests:
+          - unique
+          - not_null
+      - name: vehicle_type_name
+        description: "Display name: Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle, etc."
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_track
+    description: >
+      One row per observed vehicle. Combines the staging-level descriptive
+      fields (vehicle_type, total_distance_m, avg_speed_kmh) with the
+      per-track aggregations from int_track_kinematics (point_count,
+      duration_sec, min/max speed, stopped_point_count). Carries the foreign
+      key to dim_vehicle_type so the fact table joins to one dim, not two.
+    columns:
+      - name: track_sk
+        description: Surrogate key — inherited from stg_pneuma_tracks.
+        data_tests:
+          - unique
+          - not_null
+      - name: vehicle_type_sk
+        description: Foreign key into dim_vehicle_type.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vehicle_type')
+                field: vehicle_type_sk
+      - name: source_file
+        data_tests:
+          - not_null
+      - name: track_id
+        data_tests:
+          - not_null
+      - name: vehicle_type
+        data_tests:
+          - not_null
+      - name: total_distance_m
+        description: Source-reported total distance traveled, in meters.
+      - name: avg_speed_kmh
+        description: Source-reported average speed, in km/h.
+      - name: point_count
+        description: Computed total number of recorded frames for this vehicle.
+        data_tests:
+          - not_null
+      - name: duration_sec
+        description: Computed time on camera (last_seen_sec - first_seen_sec).
+      - name: min_speed_kmh
+        description: Computed minimum observed instantaneous speed.
+      - name: max_speed_kmh
+        description: Computed maximum observed instantaneous speed.
+      - name: stopped_point_count
+        description: Computed count of frames where the vehicle was effectively stationary (speed_kmh < 1).
+      - name: loaded_at
+        data_tests:
+          - not_null
