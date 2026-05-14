@@ -51,6 +51,7 @@ select
     -- derived from intermediate
     delta_time_sec,
     delta_speed_kmh,
+    delta_distance_m,
     speed_bucket,
 
     -- audit

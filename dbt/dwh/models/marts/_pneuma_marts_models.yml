@@ -115,6 +115,8 @@ models:
         description: Seconds since the previous frame for this vehicle. NULL for the first frame of each vehicle.
       - name: delta_speed_kmh
         description: Speed change since the previous frame. NULL for the first frame of each vehicle.
+      - name: delta_distance_m
+        description: Great-circle distance from the previous frame in metres. NULL for the first frame of each vehicle.
       - name: speed_bucket
         description: Coarse speed band — STOPPED, SLOW, NORMAL, FAST.
         data_tests:

@@ -19,7 +19,17 @@ with_lag as (
         lag(seconds_since_start) over (
             partition by track_sk
             order by frame_idx
-        ) as prev_seconds_since_start
+        ) as prev_seconds_since_start,
+
+        lag(latitude) over (
+            partition by track_sk
+            order by frame_idx
+        ) as prev_latitude,
+
+        lag(longitude) over (
+            partition by track_sk
+            order by frame_idx
+        ) as prev_longitude
 
     from points
 
@@ -31,6 +41,9 @@ with_deltas as (
         *,
         seconds_since_start - prev_seconds_since_start as delta_time_sec,
         speed_kmh - prev_speed_kmh                     as delta_speed_kmh,
+
+        {{ haversine_meters('prev_latitude', 'prev_longitude', 'latitude', 'longitude') }}
+            as delta_distance_m,
 
         case
             when speed_kmh < 1   then 'STOPPED'

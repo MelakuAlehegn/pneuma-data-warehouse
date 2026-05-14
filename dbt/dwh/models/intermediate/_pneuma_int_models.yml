@@ -20,6 +20,11 @@ models:
           first frame of each track.
       - name: delta_speed_kmh
         description: Speed change since the previous frame. NULL for the first frame.
+      - name: delta_distance_m
+        description: >
+          Great-circle distance in metres between this frame and the previous
+          frame for this vehicle. Computed via the haversine_meters macro.
+          NULL for the first frame of each vehicle.
       - name: speed_bucket
         description: Speed category. STOPPED | SLOW | NORMAL | FAST.
         data_tests:
