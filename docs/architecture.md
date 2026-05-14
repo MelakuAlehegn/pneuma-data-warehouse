@@ -21,6 +21,28 @@ flowchart LR
   DBT --> EL[Elementary observability]
 ```
 
+## Ingest flow
+
+The pNEUMA CSV format is the most unusual engineering problem in the pipeline. Each row in a source file represents an entire vehicle's trajectory — 4 header columns followed by `N × 6` repeating per-frame columns, with **`N` different for every row**. A naive `pd.read_csv` fails on the very first parse because the column count is non-uniform.
+
+The ingest module solves this with a streaming line-by-line parser. For each vehicle it emits one `Track` record (the header) and `N` `TrajectoryPoint` records, normalising the input into two tidy tables.
+
+```mermaid
+flowchart LR
+  L[Local ./data/<file>.csv] -- "upload if missing" --> M[(MinIO<br/>s3://pneuma-raw)]
+  M -- streaming read --> P[Parser<br/>1 row → 1 Track + N Points]
+  P -- batched COPY --> S[(_points_stg / _tracks_stg<br/>temp tables)]
+  S -- INSERT … ON CONFLICT DO NOTHING --> R1[(raw.tracks)]
+  S -- INSERT … ON CONFLICT DO NOTHING --> R2[(raw.trajectory_points)]
+```
+
+Two design choices worth calling out:
+
+- **Temp staging + `ON CONFLICT DO NOTHING`** instead of one-row-at-a-time INSERT. COPY into a transient table is ~50× faster than row-by-row inserts, and the conflict clause keyed on `(source_file, track_id, frame_idx)` makes re-runs of the same file idempotent.
+- **`source_file` is part of every primary key.** Multiple pNEUMA files can coexist in the same `raw.*` tables — the file name itself is the lineage. Removing data for a single ingest run is `DELETE … WHERE source_file = '…'`.
+
+The DAG (`airflow/dags/ingest_pneuma.py`) is a thin TaskFlow wrapper: it pulls config from environment variables and calls `ingest.pipeline.run_ingest()`. Nothing in `ingest/` imports Airflow, which means the whole pipeline is exercisable in plain pytest without spinning up the stack.
+
 ## Layered design
 
 | Layer | Schema | Purpose |

@@ -23,12 +23,23 @@ x-airflow-common: &airflow-common
     # The dbt project is mounted here so Cosmos can find it.
     DBT_PROJECT_DIR: /opt/airflow/dbt
     DBT_PROFILES_DIR: /opt/airflow/dbt
+    # Let DAGs import our `ingest` package from /opt/airflow/ingest.
+    PYTHONPATH: /opt/airflow
+    # Derived connection strings — DAGs read these directly via os.environ.
+    WAREHOUSE_DSN: postgresql://warehouse:${WAREHOUSE_DB_PASSWORD}@postgres:5432/warehouse
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    MINIO_BUCKET_RAW: ${MINIO_BUCKET_RAW}
+    PNEUMA_FILE: ${PNEUMA_FILE:-20181101_d1_0800_0830.csv}
   volumes:
     - ../airflow/dags:/opt/airflow/dags
     - ../airflow/plugins:/opt/airflow/plugins
     - ../airflow/include:/opt/airflow/include
     - ../airflow/logs:/opt/airflow/logs
     - ../dbt/dwh:/opt/airflow/dbt
+    - ../ingest:/opt/airflow/ingest:ro
+    - ../data:/opt/airflow/data:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
