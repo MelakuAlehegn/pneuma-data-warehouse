@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from airflow.decorators import dag, task
+from include.assets import pneuma_raw
 
 DATA_DIR = Path("/opt/airflow/data")
 
@@ -41,8 +42,10 @@ def ingest_pneuma():
             local_data_dir=DATA_DIR,
         )
 
-    @task
+    @task(outlets=[pneuma_raw])
     def validate(counts: dict) -> None:
+        """Sanity-check the load, then emit the pneuma_raw asset so the
+        transform DAG picks up automatically."""
         if counts["tracks_loaded"] == 0:
             raise ValueError(f"Ingest finished with zero tracks loaded: {counts}")
         if counts["points_loaded"] == 0:

@@ -51,6 +51,9 @@ clean: ## Remove containers, networks, AND named volumes (wipes data)
 ingest: ## Trigger the ingest DAG (alternative: run from Airflow UI)
 	$(COMPOSE) exec -T airflow-scheduler airflow dags trigger ingest_pneuma
 
+transform: ## Trigger the transform DAG manually (normally fires on the pneuma_raw asset)
+	$(COMPOSE) exec -T airflow-scheduler airflow dags trigger transform_pneuma
+
 # dbt targets run inside the airflow-scheduler container so versions match the
 # image we deploy. For local dev iteration install dbt via `uv tool install
 # dbt-postgres==X.Y.Z` and run `dbt` directly from dbt/dwh/.

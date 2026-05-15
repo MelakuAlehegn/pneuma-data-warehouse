@@ -16,6 +16,12 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+# Defer cross-model tests (e.g. `relationships`) until every referenced model
+# is either in the current selection or already built. Prevents test failures
+# of the form "relation X does not exist" when models are run one at a time.
+flags:
+  indirect_selection: buildable
+
 # Layered materialisation strategy. Override per-model where it matters.
 #   staging      → view (cheap, always-fresh transformation of raw)
 #   intermediate → ephemeral (inlined into downstream models; no physical table)
