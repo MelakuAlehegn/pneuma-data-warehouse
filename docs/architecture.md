@@ -43,6 +43,20 @@ Two design choices worth calling out:
 
 The DAG (`airflow/dags/ingest_pneuma.py`) is a thin TaskFlow wrapper: it pulls config from environment variables and calls `ingest.pipeline.run_ingest()`. Nothing in `ingest/` imports Airflow, which means the whole pipeline is exercisable in plain pytest without spinning up the stack.
 
+## Orchestration
+
+Two DAGs, wired via Airflow assets so the transform fires exactly as often as the ingest succeeds:
+
+```mermaid
+flowchart LR
+  T1[ingest_pneuma<br/>manual trigger] --> V[validate task<br/>outlets=pneuma_raw]
+  V -. emits asset .-> A((pneuma_raw))
+  A -. schedule=pneuma_raw .-> T2[transform_pneuma]
+  T2 --> C[Cosmos DbtTaskGroup<br/>one Airflow task per dbt model + test]
+```
+
+`transform_pneuma` uses `astronomer-cosmos` with `LoadMode.DBT_LS` — the dbt project is parsed at DAG-parse time, so the Airflow UI always shows the current set of dbt models, no manifest checked-in. `TestBehavior.AFTER_ALL` builds every model first and then runs the full test suite as a final task; this is what lets cross-model `relationships` tests work correctly (both sides exist by the time the test runs). If any test fails, the DAG fails — that's the circuit-breaker the brief asks for, gating any downstream consumer (Metabase refresh, a future blue-green promotion task) that's chained off this DAG.
+
 ## Layered design
 
 | Layer | Schema | Purpose |
