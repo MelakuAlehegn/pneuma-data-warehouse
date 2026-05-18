@@ -38,3 +38,14 @@ models:
     marts:
       +schema: analytics
       +materialized: table
+
+  # Elementary writes its run/test history models to their own schema. With our
+  # generate_schema_name macro this resolves to `dbt_dev_elementary` in dev and
+  # `elementary` in prod.
+  elementary:
+    +schema: elementary
+
+vars:
+  # Elementary inserts run metadata on every dbt invocation. Disable here only
+  # if dbt itself is being called from a context where it shouldn't write.
+  disable_elementary: false

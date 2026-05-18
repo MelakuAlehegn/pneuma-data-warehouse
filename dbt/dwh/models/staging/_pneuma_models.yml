@@ -25,10 +25,25 @@ models:
         description: Categorical type (Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle).
         data_tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ["Car", "Motorcycle", "Taxi", "Bus", "Medium Vehicle", "Heavy Vehicle"]
       - name: total_distance_m
         description: Total distance traveled by this vehicle during the recording window, in meters.
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 50000
+                row_condition: "total_distance_m is not null"
       - name: avg_speed_kmh
         description: Average speed over the recording window, in km/h.
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 200
+                row_condition: "avg_speed_kmh is not null"
       - name: loaded_at
         description: UTC timestamp the source row was inserted by the ingest pipeline.
         data_tests:
@@ -64,17 +79,55 @@ models:
         data_tests:
           - not_null
       - name: latitude
-        description: WGS84 latitude.
+        description: WGS84 latitude. pNEUMA recordings are over downtown Athens.
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 37.9
+                max_value: 38.05
       - name: longitude
-        description: WGS84 longitude.
+        description: WGS84 longitude. pNEUMA recordings are over downtown Athens.
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 23.70
+                max_value: 23.80
       - name: speed_kmh
         description: Instantaneous speed at this frame, in km/h.
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 200
+                row_condition: "speed_kmh is not null"
       - name: lon_acceleration_ms2
         description: Longitudinal acceleration, m/s².
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: -15
+                max_value: 15
+                config:
+                  severity: warn
+                row_condition: "lon_acceleration_ms2 is not null"
       - name: lat_acceleration_ms2
         description: Lateral acceleration, m/s².
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: -15
+                max_value: 15
+                row_condition: "lat_acceleration_ms2 is not null"
       - name: seconds_since_start
         description: Seconds elapsed from the start of the recording window when this frame was captured.
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 7200
+                row_condition: "seconds_since_start is not null"
       - name: loaded_at
         data_tests:
           - not_null

@@ -25,7 +25,11 @@ DATA_DIR = Path("/opt/airflow/data")
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["ingest", "pneuma", "raw"],
-    default_args={"retries": 0},
+    default_args={
+        "retries": 0,
+        "email": [os.environ.get("ALERT_EMAIL", "admin@pneuma-dwh.local")],
+        "email_on_failure": True,
+    },
 )
 def ingest_pneuma():
     @task

@@ -10,3 +10,8 @@ boto3==1.40.71
 
 # Local schema/connection helpers used by ingest tasks
 psycopg2-binary==2.9.10
+
+# Elementary CLI — generates the HTML report off the dbt artefacts +
+# elementary's history tables. Used by the report task at the end of
+# transform_pneuma.
+elementary-data[postgres]==0.18.0

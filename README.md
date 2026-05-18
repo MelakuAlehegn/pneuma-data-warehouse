@@ -97,4 +97,6 @@ echo "AIRFLOW_UID=$(id -u)" >> .env
 | Airflow UI | http://localhost:8080 | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` |
 | Metabase | http://localhost:3000 | set on first visit |
 | MinIO console | http://localhost:9001 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+| pgweb (DB explorer) | http://localhost:8081 | pre-connected as `POSTGRES_USER` |
+| MailHog (alert inbox) | http://localhost:8025 | none — captures every email |
 | Postgres | `localhost:5432` | per-service roles in `.env` |

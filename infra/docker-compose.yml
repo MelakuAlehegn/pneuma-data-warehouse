@@ -20,6 +20,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
     AIRFLOW__API_AUTH__JWT_ISSUER: pneuma-dwh
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # Cosmos runs `dbt deps` + `dbt ls` at DAG parse time to discover models.
+    # 30s (the default) is too tight for a project with three dbt packages.
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: "180"
     # The dbt project is mounted here so Cosmos can find it.
     DBT_PROJECT_DIR: /opt/airflow/dbt
     DBT_PROFILES_DIR: /opt/airflow/dbt
@@ -40,6 +43,11 @@ x-airflow-common: &airflow-common
     POSTGRES_HOST: postgres
     POSTGRES_PORT: "5432"
     DBT_TARGET: ${DBT_TARGET:-dev}
+    # SMTP — Airflow 3's email-on-failure notifier uses the SMTP provider's
+    # SmtpHook, which needs a real `smtp_default` Connection (env vars alone
+    # aren't enough). The disable_tls/disable_ssl extras suit a local MailHog.
+    AIRFLOW_CONN_SMTP_DEFAULT: smtp://mailhog:1025/?disable_tls=true&disable_ssl=true&from_email=alerts%40pneuma-dwh.local
+    ALERT_EMAIL: ${ALERT_EMAIL:-admin@pneuma-dwh.local}
   volumes:
     - ../airflow/dags:/opt/airflow/dags
     - ../airflow/plugins:/opt/airflow/plugins
@@ -78,6 +86,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP intake
+      - "8025:8025"  # Web UI showing captured emails
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+    restart: unless-stopped
+    environment:
+      # Pre-connect as the superuser so every schema (dbt_dev_*, raw, analytics)
+      # is visible in the explorer. Local-only convenience tool — do not expose.
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/warehouse?sslmode=disable
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   minio:
     image: minio/minio:latest
