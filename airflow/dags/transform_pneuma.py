@@ -2,15 +2,16 @@
 
 Triggered automatically when `ingest_pneuma` emits the `pneuma_raw` asset.
 Cosmos parses the dbt project at DAG-parse time (`LoadMode.DBT_LS`) and renders
-each model + test as its own Airflow task. With `TestBehavior.AFTER_EACH`,
-tests run immediately after the model they cover; a failing test blocks the
-downstream models, giving us the test-as-circuit-breaker behaviour the brief
-calls for.
+each model + test as its own Airflow task. With `TestBehavior.AFTER_ALL`, dbt
+handles run+test ordering correctly (including cross-model `relationships`
+tests). A failing test fails the DAG, gating downstream consumers — the
+circuit-breaker the brief calls for.
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -21,9 +22,9 @@ from cosmos import (
     ProjectConfig,
     RenderConfig,
 )
-from cosmos.constants import LoadMode, TestBehavior
+from cosmos.constants import LoadMode, SourceRenderingBehavior, TestBehavior
 
-from airflow.decorators import dag
+from airflow.decorators import dag, task
 from include.assets import pneuma_raw
 
 DBT_PROJECT_PATH = Path("/opt/airflow/dbt")
@@ -40,10 +41,14 @@ DBT_EXECUTABLE = "/home/airflow/.local/bin/dbt"
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["transform", "dbt", "cosmos"],
-    default_args={"retries": 0},
+    default_args={
+        "retries": 0,
+        "email": [os.environ.get("ALERT_EMAIL", "admin@pneuma-dwh.local")],
+        "email_on_failure": True,
+    },
 )
 def transform_pneuma():
-    DbtTaskGroup(
+    dbt_tg = DbtTaskGroup(
         group_id="dbt",
         project_config=ProjectConfig(DBT_PROJECT_PATH),
         profile_config=ProfileConfig(
@@ -54,13 +59,48 @@ def transform_pneuma():
         execution_config=ExecutionConfig(dbt_executable_path=DBT_EXECUTABLE),
         render_config=RenderConfig(
             load_method=LoadMode.DBT_LS,
-            # AFTER_ALL: build every model, then run `dbt test` as one final
-            # task. Cross-model tests like `relationships` work cleanly because
-            # both sides exist by the time the test runs. A failing test fails
-            # the DAG, which gates Metabase / downstream consumers.
+            # Each source that has a `freshness:` block in sources.yml becomes
+            # its own task that runs `dbt source freshness`. Wired upstream of
+            # the model tasks via Cosmos's auto-graph — if raw is stale, no
+            # transformation happens.
+            source_rendering_behavior=SourceRenderingBehavior.WITH_TESTS_OR_FRESHNESS,
             test_behavior=TestBehavior.AFTER_ALL,
+            # Elementary's package ships ~20 of its own models. Hide them from
+            # the visual graph; they get refreshed in a single batched task
+            # below. The on-run-end hooks still capture run metadata regardless.
+            exclude=["package:elementary"],
         ),
     )
+
+    @task
+    def refresh_elementary() -> None:
+        """Run dbt against just the elementary package so its run-history and
+        test-results models pick up everything from the current pipeline run.
+
+        The HTML report (via `edr report`) is intentionally NOT a DAG task —
+        its internal dbt runner conflicts with site-packages permissions.
+        Generate it manually when you want a snapshot:
+            uv tool install elementary-data
+            cd dbt/dwh
+            edr report --project-name dwh --profile-target dev --profiles-dir .
+        """
+        subprocess.run(
+            [
+                DBT_EXECUTABLE,
+                "build",
+                "--select",
+                "package:elementary",
+                "--profiles-dir",
+                str(DBT_PROJECT_PATH),
+                "--project-dir",
+                str(DBT_PROJECT_PATH),
+                "--target",
+                os.environ.get("DBT_TARGET", "prod"),
+            ],
+            check=True,
+        )
+
+    dbt_tg >> refresh_elementary()
 
 
 transform_pneuma()

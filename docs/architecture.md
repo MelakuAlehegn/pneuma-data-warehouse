@@ -57,6 +57,18 @@ flowchart LR
 
 `transform_pneuma` uses `astronomer-cosmos` with `LoadMode.DBT_LS` — the dbt project is parsed at DAG-parse time, so the Airflow UI always shows the current set of dbt models, no manifest checked-in. `TestBehavior.AFTER_ALL` builds every model first and then runs the full test suite as a final task; this is what lets cross-model `relationships` tests work correctly (both sides exist by the time the test runs). If any test fails, the DAG fails — that's the circuit-breaker the brief asks for, gating any downstream consumer (Metabase refresh, a future blue-green promotion task) that's chained off this DAG.
 
+## Observability
+
+Three layers sit on top of the pipeline:
+
+| Layer | Implementation | Where to look |
+|---|---|---|
+| **Source freshness** | `freshness:` block on every source in `_pneuma_sources.yml`; Cosmos renders a `dbt source freshness` task per source upstream of model builds (`SourceRenderingBehavior.WITH_TESTS_OR_FRESHNESS`). Stale raw → no transform. | Airflow UI, `source_freshness_*` tasks |
+| **Run history** | Elementary dbt package captures every model + test run into the `elementary` schema via on-run-end hooks. `transform_pneuma` ends with a `refresh_elementary` task that rebuilds Elementary's aggregation models. | `dbt_dev_elementary.*` (browse via pgweb at http://localhost:8081). The HTML report (`edr report`) is generated on demand from the host, not in the DAG. |
+| **Failure alerts** | `email_on_failure=True` on both DAGs. Airflow SMTP points at MailHog locally; swap the host for SES/SendGrid in prod with no DAG code changes. | http://localhost:8025 (MailHog inbox) |
+
+MailHog is a deliberate dev choice — it accepts SMTP traffic and shows every email in a browser, so you can see exactly what would go out to a real inbox without configuring a real provider. In prod the same `AIRFLOW__SMTP__SMTP_HOST` env var points at a real server.
+
 ## Layered design
 
 | Layer | Schema | Purpose |
