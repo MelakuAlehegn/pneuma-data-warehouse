@@ -33,6 +33,7 @@ data/
 *.json.gz
 *.zip
 !seeds/**/*.csv
+!tests/fixtures/**/*.csv
 
 # Airflow
 airflow/logs/
