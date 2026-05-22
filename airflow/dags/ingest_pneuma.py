@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from airflow.decorators import dag, task
+
 from include.assets import pneuma_raw
 
 DATA_DIR = Path("/opt/airflow/data")

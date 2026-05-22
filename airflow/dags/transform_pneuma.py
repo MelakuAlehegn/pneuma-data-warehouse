@@ -15,6 +15,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from airflow.decorators import dag, task
 from cosmos import (
     DbtTaskGroup,
     ExecutionConfig,
@@ -24,7 +25,6 @@ from cosmos import (
 )
 from cosmos.constants import LoadMode, SourceRenderingBehavior, TestBehavior
 
-from airflow.decorators import dag, task
 from include.assets import pneuma_raw
 
 DBT_PROJECT_PATH = Path("/opt/airflow/dbt")
