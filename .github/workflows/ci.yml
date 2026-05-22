@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel an older in-flight run if a new commit lands on the same ref —
+# saves runner minutes when you're force-pushing fixes to a PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Install dev dependencies
+        run: uv sync --dev
+      - name: Ruff lint
+        run: uv run ruff check
+      - name: Ruff format check
+        run: uv run ruff format --check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Install dev dependencies
+        run: uv sync --dev
+      - name: Run pytest
+        run: uv run pytest
+
+  dbt-ci:
+    runs-on: ubuntu-latest
+    # Spin up a throwaway Postgres for the duration of this job. dbt compile
+    # doesn't actually query tables, but it does need to connect to validate
+    # the target and resolve schemas.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      DBT_USER: postgres
+      DBT_PASSWORD: postgres
+      DBT_TARGET: ci
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt/dwh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dbt
+        run: pip install dbt-core==1.11.9 dbt-postgres==1.10.0
+      - name: Bootstrap Postgres schemas
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d warehouse <<-SQL
+            CREATE SCHEMA IF NOT EXISTS raw;
+            CREATE SCHEMA IF NOT EXISTS staging;
+            CREATE SCHEMA IF NOT EXISTS intermediate;
+            CREATE SCHEMA IF NOT EXISTS analytics;
+          SQL
+      - name: dbt deps
+        working-directory: dbt/dwh
+        run: dbt deps
+      - name: dbt parse
+        working-directory: dbt/dwh
+        run: dbt parse
+      - name: dbt compile
+        working-directory: dbt/dwh
+        run: dbt compile
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # gitleaks needs the full history to scan every commit's diff.
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build Airflow image
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/airflow
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
